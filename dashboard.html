@@ -47,11 +47,12 @@
   .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
   .badge.joined { background: #e8f5e9; color: #1b7a2e; }
   .badge.pending { background: #fff4e5; color: #b45309; }
-  .itemCard { padding: 14px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 10px; }
-  .itemTitle { font-size: 14px; font-weight: 600; color: #222; }
-  .itemMeta { font-size: 12px; color: #888; margin-top: 3px; }
-  .catPill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #eef1fe; color: #4a6cf7; margin-top: 6px; }
-  .doneBtn { margin-top: 10px; background: #e8f5e9; color: #1b7a2e; border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .itemCard { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 8px; background: #fff; }
+  .itemLeft { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .itemTitle { font-size: 14px; font-weight: 600; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .itemMeta { font-size: 12px; color: #888; white-space: nowrap; }
+  .catPill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #eef1fe; color: #4a6cf7; white-space: nowrap; }
+  .doneBtn { flex-shrink: 0; background: #e8f5e9; color: #1b7a2e; border: none; padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
   .doneBtn:disabled { background: #f0f0f0; color: #aaa; }
   .doneBtn.completed { background: #e8f5e9 !important; color: #1b7a2e !important; }
   .empty { text-align: center; color: #999; font-size: 13px; padding: 24px 0; }
@@ -517,9 +518,11 @@
       div.className = 'itemCard';
       const dueStr = item.due_date + (item.due_time ? ' ' + item.due_time : '');
       div.innerHTML = `
-        <div class="itemTitle">${item.title} <span style="color:#aaa;font-weight:400;">(${item.item_type === 'reminder' ? 'Reminder' : 'To-Do'})</span></div>
-        <div class="itemMeta">Due: ${dueStr}</div>
-        <div class="catPill">${item.category}</div><br>
+        <div class="itemLeft">
+          <span class="itemTitle">${item.title}</span>
+          <span class="itemMeta">${dueStr}</span>
+          <span class="catPill">${item.category}</span>
+        </div>
         <button class="doneBtn ${item.status === 'done' ? 'completed' : ''}" ${item.status === 'done' ? 'disabled' : ''} onclick="markDone('${item.id}', this)">
           ${item.status === 'done' ? 'Completed' : 'Mark Done'}
         </button>
