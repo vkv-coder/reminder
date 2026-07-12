@@ -165,14 +165,30 @@
     document.getElementById('signupMsg').className = 'msg';
 
     try {
-      // 1. Create auth user
+      // 1. Try creating a new auth user
+      let authUid;
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: email,
         password: password
       });
-      if (authError) throw authError;
 
-      const authUid = authData.user.id;
+      if (!authError) {
+        authUid = authData.user.id;
+      } else {
+        // Email already has a login (from another app on this Supabase project).
+        // Try signing in with the same password instead of failing.
+        const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+        if (signInError) {
+          showMsg('signupMsg', 'This email already has an account. Please use your existing password, or use "Forgot password" to reset it.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Create Organization';
+          return;
+        }
+        authUid = signInData.user.id;
+      }
 
       // 2. Create organization (status = pending)
       const { data: orgData, error: orgError } = await supabaseClient
