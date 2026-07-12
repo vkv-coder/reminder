@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reminders & To-Do - Login</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  body { background: #f2f4f7; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; width: 100%; max-width: 400px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 28px; }
+  h1 { font-size: 20px; text-align: center; margin-bottom: 4px; color: #1a1a1a; }
+  .sub { text-align: center; color: #777; font-size: 13px; margin-bottom: 20px; }
+  .tabs { display: flex; background: #eef0f3; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tab { flex: 1; text-align: center; padding: 9px 0; border-radius: 8px; font-size: 14px; font-weight: 600; color: #777; cursor: pointer; }
+  .tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .form { display: none; }
+  .form.active { display: block; }
+  label { font-size: 13px; font-weight: 600; color: #333; display: block; margin: 12px 0 5px; }
+  input { width: 100%; padding: 11px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+  input:focus { border-color: #4a6cf7; }
+  button.primary { width: 100%; margin-top: 20px; padding: 12px; background: #4a6cf7; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { background: #aab8f7; cursor: not-allowed; }
+  .link { text-align: center; margin-top: 14px; font-size: 13px; color: #4a6cf7; cursor: pointer; text-decoration: underline; }
+  .msg { margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+  .msg.error { background: #fdeaea; color: #b42318; display: block; }
+  .msg.success { background: #e8f5e9; color: #1b7a2e; display: block; }
+  .msg.info { background: #eaf1fd; color: #1a4fb4; display: block; }
+  .waiting { text-align: center; padding: 20px 0; }
+  .waiting h2 { font-size: 17px; margin-bottom: 8px; }
+  .waiting p { font-size: 13px; color: #777; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="card" id="authCard">
+  <h1>Reminders & To-Do</h1>
+  <div class="sub">reminders.anyapps.in</div>
+
+  <div class="tabs" id="tabsBar">
+    <div class="tab active" id="tabLogin" onclick="switchTab('login')">Login</div>
+    <div class="tab" id="tabSignup" onclick="switchTab('signup')">Sign Up</div>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <div class="form active" id="loginForm">
+    <label>Email</label>
+    <input type="email" id="loginEmail" placeholder="you@company.com">
+    <label>Password</label>
+    <input type="password" id="loginPassword" placeholder="Your password">
+    <button class="primary" id="loginBtn" onclick="doLogin()">Log In</button>
+    <div class="link" onclick="switchTab('forgot')">Forgot password?</div>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+
+  <!-- SIGNUP FORM -->
+  <div class="form" id="signupForm">
+    <label>Company / Organization Name</label>
+    <input type="text" id="suOrgName" placeholder="e.g. MK Engineering">
+    <label>Your Name (Admin)</label>
+    <input type="text" id="suFullName" placeholder="Your full name">
+    <label>Email</label>
+    <input type="email" id="suEmail" placeholder="you@company.com">
+    <label>Password</label>
+    <input type="password" id="suPassword" placeholder="Create a password">
+    <label>Phone Number</label>
+    <input type="tel" id="suPhone" placeholder="10-digit mobile number">
+    <button class="primary" id="signupBtn" onclick="doSignup()">Create Organization</button>
+    <div class="msg" id="signupMsg"></div>
+  </div>
+
+  <!-- FORGOT PASSWORD FORM -->
+  <div class="form" id="forgotForm">
+    <label>Enter your email to reset password</label>
+    <input type="email" id="forgotEmail" placeholder="you@company.com">
+    <button class="primary" id="forgotBtn" onclick="doForgotPassword()">Send Reset Link</button>
+    <div class="link" onclick="switchTab('login')">Back to Login</div>
+    <div class="msg" id="forgotMsg"></div>
+  </div>
+
+  <!-- WAITING APPROVAL SCREEN -->
+  <div class="waiting hidden" id="waitingScreen">
+    <h2>Awaiting Approval</h2>
+    <p>Your organization signup is under review. You'll be able to log in fully once approved. This usually takes a short while — thank you for your patience.</p>
+  </div>
+
+  <!-- LOGGED IN PLACEHOLDER (dashboard not built yet) -->
+  <div class="waiting hidden" id="loggedInScreen">
+    <h2>Login Successful</h2>
+    <p id="loggedInDetail"></p>
+  </div>
+</div>
+
+<script>
+  // ---- SUPABASE CONFIG (Dhobi-digital project) ----
+  const SUPABASE_URL = 'https://jqqnnkzozjskziaizajg.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ---- TELEGRAM CONFIG ----
+  const TG_BOT_TOKEN = '8923280786:AAFLM1q1gjd8Gok9qakztDN9ZpUDAWLdfpY';
+  const OWNER_CHAT_ID = '8507770594';
+
+  function switchTab(tab) {
+    document.getElementById('loginForm').classList.remove('active');
+    document.getElementById('signupForm').classList.remove('active');
+    document.getElementById('forgotForm').classList.remove('active');
+    document.getElementById('tabLogin').classList.remove('active');
+    document.getElementById('tabSignup').classList.remove('active');
+    document.getElementById('waitingScreen').classList.add('hidden');
+    document.getElementById('loggedInScreen').classList.add('hidden');
+    document.getElementById('tabsBar').classList.remove('hidden');
+
+    if (tab === 'login') {
+      document.getElementById('loginForm').classList.add('active');
+      document.getElementById('tabLogin').classList.add('active');
+    } else if (tab === 'signup') {
+      document.getElementById('signupForm').classList.add('active');
+      document.getElementById('tabSignup').classList.add('active');
+    } else if (tab === 'forgot') {
+      document.getElementById('forgotForm').classList.add('active');
+      document.getElementById('tabsBar').classList.add('hidden');
+    }
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg ' + type;
+  }
+
+  async function sendTelegramMessage(text) {
+    try {
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: OWNER_CHAT_ID, text: text })
+      });
+    } catch (e) {
+      // silent fail - notification is best-effort, not critical path
+    }
+  }
+
+  async function doSignup() {
+    const orgName = document.getElementById('suOrgName').value.trim();
+    const fullName = document.getElementById('suFullName').value.trim();
+    const email = document.getElementById('suEmail').value.trim();
+    const password = document.getElementById('suPassword').value;
+    const phone = document.getElementById('suPhone').value.trim();
+    const btn = document.getElementById('signupBtn');
+
+    if (!orgName || !fullName || !email || !password) {
+      showMsg('signupMsg', 'Please fill all required fields.', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      showMsg('signupMsg', 'Password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+    showMsg('signupMsg', '', '');
+    document.getElementById('signupMsg').className = 'msg';
+
+    try {
+      // 1. Create auth user
+      const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password
+      });
+      if (authError) throw authError;
+
+      const authUid = authData.user.id;
+
+      // 2. Create organization (status = pending)
+      const { data: orgData, error: orgError } = await supabaseClient
+        .from('rm_organizations')
+        .insert({ org_name: orgName, owner_email: email, owner_phone: phone, status: 'pending' })
+        .select()
+        .single();
+      if (orgError) throw orgError;
+
+      // 3. Create rm_users row linked to auth + org, role admin
+      const { error: userError } = await supabaseClient
+        .from('rm_users')
+        .insert({
+          auth_uid: authUid,
+          org_id: orgData.id,
+          full_name: fullName,
+          email: email,
+          role: 'admin'
+        });
+      if (userError) throw userError;
+
+      // 4. Notify owner via Telegram
+      sendTelegramMessage(
+        `New org signup:\nCompany: ${orgName}\nAdmin: ${fullName}\nEmail: ${email}\nPhone: ${phone}\n\nApprove in Supabase rm_organizations table.`
+      );
+
+      // 5. Show waiting screen
+      document.getElementById('signupForm').classList.remove('active');
+      document.getElementById('tabsBar').classList.add('hidden');
+      document.getElementById('waitingScreen').classList.remove('hidden');
+
+    } catch (err) {
+      showMsg('signupMsg', err.message || 'Signup failed. Please try again.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Create Organization';
+    }
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const btn = document.getElementById('loginBtn');
+
+    if (!email || !password) {
+      showMsg('loginMsg', 'Please enter email and password.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+    document.getElementById('loginMsg').className = 'msg';
+
+    try {
+      const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+      if (loginError) throw loginError;
+
+      // Fetch user's org + role
+      const { data: userRow, error: userErr } = await supabaseClient
+        .from('rm_users')
+        .select('org_id, role, full_name')
+        .eq('auth_uid', loginData.user.id)
+        .single();
+      if (userErr) throw userErr;
+
+      const { data: orgRow, error: orgErr } = await supabaseClient
+        .from('rm_organizations')
+        .select('status, org_name')
+        .eq('id', userRow.org_id)
+        .single();
+      if (orgErr) throw orgErr;
+
+      document.getElementById('loginForm').classList.remove('active');
+      document.getElementById('tabsBar').classList.add('hidden');
+
+      if (orgRow.status === 'pending') {
+        document.getElementById('waitingScreen').classList.remove('hidden');
+      } else if (orgRow.status === 'suspended') {
+        showMsg('loginMsg', 'This organization account is suspended. Contact support: vkvcoder.support@gmail.com', 'error');
+        document.getElementById('loginForm').classList.add('active');
+        document.getElementById('tabsBar').classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+      } else {
+        document.getElementById('loggedInDetail').textContent =
+          `Welcome ${userRow.full_name} (${userRow.role}) - ${orgRow.org_name}. Dashboard coming next.`;
+        document.getElementById('loggedInScreen').classList.remove('hidden');
+      }
+
+    } catch (err) {
+      showMsg('loginMsg', err.message || 'Login failed. Please check your credentials.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Log In';
+    }
+  }
+
+  async function doForgotPassword() {
+    const email = document.getElementById('forgotEmail').value.trim();
+    const btn = document.getElementById('forgotBtn');
+
+    if (!email) {
+      showMsg('forgotMsg', 'Please enter your email.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://reminders.anyapps.in/reset-password.html'
+      });
+      if (error) throw error;
+      showMsg('forgotMsg', 'Reset link sent! Please check your email.', 'success');
+    } catch (err) {
+      showMsg('forgotMsg', err.message || 'Failed to send reset link.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Send Reset Link';
+    }
+  }
+</script>
+
+</body>
+</html>
