@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reminders & To-Do - Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  body { background: #f2f4f7; min-height: 100vh; }
+  .header { background: #fff; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .header h1 { font-size: 17px; color: #1a1a1a; }
+  .header .sub { font-size: 12px; color: #777; }
+  .logoutBtn { background: none; border: 1px solid #ddd; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; color: #555; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .tabs { display: flex; background: #eef0f3; border-radius: 10px; padding: 4px; margin-bottom: 16px; }
+  .tab { flex: 1; text-align: center; padding: 9px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: #777; cursor: pointer; }
+  .tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  label { font-size: 13px; font-weight: 600; color: #333; display: block; margin: 12px 0 5px; }
+  label:first-child { margin-top: 0; }
+  input, select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+  input:focus, select:focus { border-color: #4a6cf7; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > div { flex: 1; }
+  .typeToggle { display: flex; gap: 8px; }
+  .typeBtn { flex: 1; text-align: center; padding: 10px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 13px; font-weight: 600; color: #777; cursor: pointer; }
+  .typeBtn.selected { border-color: #4a6cf7; color: #4a6cf7; background: #eef1fe; }
+  .alertRule { display: flex; gap: 8px; align-items: center; background: #f7f8fa; padding: 8px; border-radius: 8px; margin-top: 8px; }
+  .alertRule select, .alertRule input { font-size: 13px; padding: 7px 8px; }
+  .removeBtn { background: #fdeaea; color: #b42318; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; }
+  .addRuleBtn { margin-top: 8px; background: none; border: 1px dashed #aaa; padding: 8px; border-radius: 8px; width: 100%; font-size: 13px; color: #555; cursor: pointer; }
+  .assigneeList { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .assigneeChip { border: 1.5px solid #ddd; border-radius: 20px; padding: 7px 12px; font-size: 13px; cursor: pointer; color: #555; }
+  .assigneeChip.selected { border-color: #4a6cf7; background: #eef1fe; color: #4a6cf7; }
+  button.primary { width: 100%; margin-top: 18px; padding: 12px; background: #4a6cf7; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { background: #aab8f7; }
+  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+  .msg.error { background: #fdeaea; color: #b42318; display: block; }
+  .msg.success { background: #e8f5e9; color: #1b7a2e; display: block; }
+  .staffRow { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+  .staffRow:last-child { border-bottom: none; }
+  .staffName { font-size: 14px; font-weight: 600; color: #222; }
+  .staffEmail { font-size: 12px; color: #888; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+  .badge.joined { background: #e8f5e9; color: #1b7a2e; }
+  .badge.pending { background: #fff4e5; color: #b45309; }
+  .itemCard { padding: 14px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 10px; }
+  .itemTitle { font-size: 14px; font-weight: 600; color: #222; }
+  .itemMeta { font-size: 12px; color: #888; margin-top: 3px; }
+  .catPill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #eef1fe; color: #4a6cf7; margin-top: 6px; }
+  .doneBtn { margin-top: 10px; background: #e8f5e9; color: #1b7a2e; border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .doneBtn:disabled { background: #f0f0f0; color: #aaa; }
+  .empty { text-align: center; color: #999; font-size: 13px; padding: 24px 0; }
+  .loading { text-align: center; padding: 40px; color: #888; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="loadingScreen" class="loading">Loading...</div>
+
+<div id="appShell" class="hidden">
+  <div class="header">
+    <div>
+      <h1 id="orgNameHeader"></h1>
+      <div class="sub" id="userInfoHeader"></div>
+    </div>
+    <button class="logoutBtn" onclick="doLogout()">Logout</button>
+  </div>
+
+  <div class="wrap">
+    <div class="tabs" id="tabsBar">
+      <div class="tab active" id="tabMyItems" onclick="switchTab('myItems')">My Items</div>
+      <div class="tab hidden" id="tabNewItem" onclick="switchTab('newItem')">+ New</div>
+      <div class="tab hidden" id="tabPeople" onclick="switchTab('people')">People</div>
+    </div>
+
+    <!-- MY ITEMS PANEL -->
+    <div class="panel active" id="panelMyItems">
+      <div id="myItemsList"></div>
+    </div>
+
+    <!-- NEW ITEM PANEL (Admin only) -->
+    <div class="panel" id="panelNewItem">
+      <div class="card">
+        <label>Type</label>
+        <div class="typeToggle">
+          <div class="typeBtn selected" id="typeReminder" onclick="setItemType('reminder')">Reminder</div>
+          <div class="typeBtn" id="typeTodo" onclick="setItemType('todo')">To-Do</div>
+        </div>
+
+        <label>Title</label>
+        <input type="text" id="itemTitle" placeholder="e.g. Fire NOC Renewal">
+
+        <label>Category</label>
+        <select id="itemCategory">
+          <option>Statutory</option>
+          <option>Technical</option>
+          <option>Commercial</option>
+          <option>General Operational</option>
+          <option>Social</option>
+          <option>Family</option>
+        </select>
+
+        <div class="row2">
+          <div>
+            <label>Due Date</label>
+            <input type="date" id="itemDueDate">
+          </div>
+          <div>
+            <label>Due Time (optional)</label>
+            <input type="time" id="itemDueTime">
+          </div>
+        </div>
+
+        <label>Repeat</label>
+        <select id="itemRepeat" onchange="toggleCustomRepeat()">
+          <option value="none">None</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+          <option value="custom_days">Custom (every X days)</option>
+        </select>
+        <div id="customRepeatWrap" class="hidden">
+          <label>Repeat every how many days?</label>
+          <input type="number" id="itemRepeatDays" placeholder="e.g. 90">
+        </div>
+
+        <label>Alert Schedule (optional)</label>
+        <div id="alertRulesList"></div>
+        <button type="button" class="addRuleBtn" onclick="addAlertRule()">+ Add Alert Stage</button>
+
+        <label>Assign To</label>
+        <div class="assigneeList" id="assigneeList"></div>
+
+        <button class="primary" id="createItemBtn" onclick="createItem()">Create</button>
+        <div class="msg" id="newItemMsg"></div>
+      </div>
+    </div>
+
+    <!-- PEOPLE PANEL (Admin only) -->
+    <div class="panel" id="panelPeople">
+      <div class="card">
+        <label>Staff Full Name</label>
+        <input type="text" id="staffName" placeholder="e.g. Ramesh Patel">
+        <label>Staff Email</label>
+        <input type="email" id="staffEmail" placeholder="staff@example.com">
+        <button class="primary" id="addStaffBtn" onclick="addStaff()">Add Staff Member</button>
+        <div class="msg" id="staffMsg"></div>
+      </div>
+      <div class="card">
+        <div id="staffList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://jqqnnkzozjskziaizajg.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const TG_BOT_TOKEN = '8945742271:AAH3JVQXJpVSdjLpAaNJBIA9ay_kE2xGyK4';
+
+  let currentUser = null; // { authUid, fullName, role, orgId }
+  let currentOrg = null;  // { orgName, status }
+  let orgMembers = [];    // list of rm_users in this org
+  let selectedItemType = 'reminder';
+  let selectedAssignees = new Set();
+  let alertRuleCount = 0;
+
+  async function init() {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData.session) {
+      window.location.href = 'auth.html';
+      return;
+    }
+
+    const authUid = sessionData.session.user.id;
+
+    const { data: userRow, error: userErr } = await supabaseClient
+      .from('rm_users')
+      .select('org_id, role, full_name')
+      .eq('auth_uid', authUid)
+      .single();
+
+    if (userErr || !userRow) {
+      window.location.href = 'auth.html';
+      return;
+    }
+
+    const { data: orgRow, error: orgErr } = await supabaseClient
+      .from('rm_organizations')
+      .select('org_name, status')
+      .eq('id', userRow.org_id)
+      .single();
+
+    if (orgErr || !orgRow || orgRow.status !== 'active') {
+      window.location.href = 'auth.html';
+      return;
+    }
+
+    currentUser = { authUid, fullName: userRow.full_name, role: userRow.role, orgId: userRow.org_id };
+    currentOrg = { orgName: orgRow.org_name, status: orgRow.status };
+
+    document.getElementById('orgNameHeader').textContent = currentOrg.orgName;
+    document.getElementById('userInfoHeader').textContent = `${currentUser.fullName} (${currentUser.role})`;
+
+    if (currentUser.role === 'admin') {
+      document.getElementById('tabNewItem').classList.remove('hidden');
+      document.getElementById('tabPeople').classList.remove('hidden');
+      await loadOrgMembers();
+      renderAssigneeList();
+      renderStaffList();
+    }
+
+    await loadMyItems();
+
+    document.getElementById('loadingScreen').classList.add('hidden');
+    document.getElementById('appShell').classList.remove('hidden');
+  }
+
+  async function doLogout() {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'auth.html';
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    if (tab === 'myItems') {
+      document.getElementById('tabMyItems').classList.add('active');
+      document.getElementById('panelMyItems').classList.add('active');
+    } else if (tab === 'newItem') {
+      document.getElementById('tabNewItem').classList.add('active');
+      document.getElementById('panelNewItem').classList.add('active');
+    } else if (tab === 'people') {
+      document.getElementById('tabPeople').classList.add('active');
+      document.getElementById('panelPeople').classList.add('active');
+    }
+  }
+
+  // ---------- NEW ITEM ----------
+  function setItemType(type) {
+    selectedItemType = type;
+    document.getElementById('typeReminder').classList.toggle('selected', type === 'reminder');
+    document.getElementById('typeTodo').classList.toggle('selected', type === 'todo');
+  }
+
+  function toggleCustomRepeat() {
+    const val = document.getElementById('itemRepeat').value;
+    document.getElementById('customRepeatWrap').classList.toggle('hidden', val !== 'custom_days');
+  }
+
+  function addAlertRule() {
+    alertRuleCount++;
+    const id = 'rule' + alertRuleCount;
+    const div = document.createElement('div');
+    div.className = 'alertRule';
+    div.id = id;
+    div.innerHTML = `
+      <select class="ruleType" onchange="toggleRuleFields('${id}')" style="flex:1.2">
+        <option value="days_before">Days before due</option>
+        <option value="hours_interval">Repeat every X hours</option>
+      </select>
+      <input type="number" class="ruleDaysBefore" placeholder="Days before" style="flex:1">
+      <input type="number" class="ruleIntervalHours" placeholder="Every X hrs" style="flex:1; display:none">
+      <input type="number" class="ruleStartDays" placeholder="Start (days before)" style="flex:1; display:none">
+      <button type="button" class="removeBtn" onclick="document.getElementById('${id}').remove()">&times;</button>
+    `;
+    document.getElementById('alertRulesList').appendChild(div);
+  }
+
+  function toggleRuleFields(id) {
+    const div = document.getElementById(id);
+    const type = div.querySelector('.ruleType').value;
+    div.querySelector('.ruleDaysBefore').style.display = type === 'days_before' ? '' : 'none';
+    div.querySelector('.ruleIntervalHours').style.display = type === 'hours_interval' ? '' : 'none';
+    div.querySelector('.ruleStartDays').style.display = type === 'hours_interval' ? '' : 'none';
+  }
+
+  function renderAssigneeList() {
+    const wrap = document.getElementById('assigneeList');
+    wrap.innerHTML = '';
+    orgMembers.forEach(m => {
+      const chip = document.createElement('div');
+      chip.className = 'assigneeChip';
+      chip.textContent = m.full_name;
+      chip.onclick = () => {
+        if (selectedAssignees.has(m.id)) {
+          selectedAssignees.delete(m.id);
+          chip.classList.remove('selected');
+        } else {
+          selectedAssignees.add(m.id);
+          chip.classList.add('selected');
+        }
+      };
+      wrap.appendChild(chip);
+    });
+  }
+
+  async function createItem() {
+    const title = document.getElementById('itemTitle').value.trim();
+    const category = document.getElementById('itemCategory').value;
+    const dueDate = document.getElementById('itemDueDate').value;
+    const dueTime = document.getElementById('itemDueTime').value || null;
+    const repeat = document.getElementById('itemRepeat').value;
+    const repeatDays = document.getElementById('itemRepeatDays').value || null;
+    const btn = document.getElementById('createItemBtn');
+
+    if (!title || !dueDate) {
+      showMsg('newItemMsg', 'Please enter a title and due date.', 'error');
+      return;
+    }
+    if (selectedAssignees.size === 0) {
+      showMsg('newItemMsg', 'Please assign this to at least one person.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    try {
+      const { data: itemData, error: itemError } = await supabaseClient
+        .from('rm_items')
+        .insert({
+          org_id: currentUser.orgId,
+          item_type: selectedItemType,
+          title: title,
+          category: category,
+          due_date: dueDate,
+          due_time: dueTime,
+          repeat_rule: repeat,
+          repeat_custom_days: repeat === 'custom_days' ? parseInt(repeatDays) : null,
+          created_by: currentUser.authUid ? (await getMyUserRowId()) : null
+        })
+        .select()
+        .single();
+      if (itemError) throw itemError;
+
+      const itemId = itemData.id;
+
+      // Assignees
+      const assigneeRows = Array.from(selectedAssignees).map(uid => ({ item_id: itemId, user_id: uid }));
+      const { error: assignError } = await supabaseClient.from('rm_item_assignees').insert(assigneeRows);
+      if (assignError) throw assignError;
+
+      // Alert rules
+      const ruleDivs = document.querySelectorAll('#alertRulesList .alertRule');
+      const ruleRows = [];
+      ruleDivs.forEach(div => {
+        const type = div.querySelector('.ruleType').value;
+        if (type === 'days_before') {
+          const days = div.querySelector('.ruleDaysBefore').value;
+          if (days) ruleRows.push({ item_id: itemId, rule_type: 'days_before', days_before: parseInt(days) });
+        } else {
+          const hrs = div.querySelector('.ruleIntervalHours').value;
+          const startDays = div.querySelector('.ruleStartDays').value;
+          if (hrs) ruleRows.push({ item_id: itemId, rule_type: 'hours_interval', interval_hours: parseInt(hrs), interval_start_days_before: startDays ? parseInt(startDays) : 0 });
+        }
+      });
+      if (ruleRows.length > 0) {
+        const { error: ruleError } = await supabaseClient.from('rm_alert_rules').insert(ruleRows);
+        if (ruleError) throw ruleError;
+      }
+
+      showMsg('newItemMsg', 'Created successfully!', 'success');
+      resetNewItemForm();
+      await loadMyItems();
+
+    } catch (err) {
+      showMsg('newItemMsg', err.message || 'Failed to create item.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create';
+    }
+  }
+
+  async function getMyUserRowId() {
+    const { data } = await supabaseClient.from('rm_users').select('id').eq('auth_uid', currentUser.authUid).single();
+    return data ? data.id : null;
+  }
+
+  function resetNewItemForm() {
+    document.getElementById('itemTitle').value = '';
+    document.getElementById('itemDueDate').value = '';
+    document.getElementById('itemDueTime').value = '';
+    document.getElementById('itemRepeat').value = 'none';
+    document.getElementById('itemRepeatDays').value = '';
+    document.getElementById('customRepeatWrap').classList.add('hidden');
+    document.getElementById('alertRulesList').innerHTML = '';
+    selectedAssignees.clear();
+    renderAssigneeList();
+    setItemType('reminder');
+  }
+
+  // ---------- PEOPLE (Admin) ----------
+  async function loadOrgMembers() {
+    const { data, error } = await supabaseClient
+      .from('rm_users')
+      .select('id, full_name, email, role, auth_uid')
+      .eq('org_id', currentUser.orgId);
+    if (!error) orgMembers = data;
+  }
+
+  function renderStaffList() {
+    const wrap = document.getElementById('staffList');
+    if (orgMembers.length === 0) {
+      wrap.innerHTML = '<div class="empty">No staff added yet.</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    orgMembers.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'staffRow';
+      const joined = m.auth_uid !== null;
+      row.innerHTML = `
+        <div>
+          <div class="staffName">${m.full_name} ${m.role === 'admin' ? '(Admin)' : ''}</div>
+          <div class="staffEmail">${m.email}</div>
+        </div>
+        <span class="badge ${joined ? 'joined' : 'pending'}">${joined ? 'Joined' : 'Invited'}</span>
+      `;
+      wrap.appendChild(row);
+    });
+  }
+
+  async function addStaff() {
+    const name = document.getElementById('staffName').value.trim();
+    const email = document.getElementById('staffEmail').value.trim();
+    const btn = document.getElementById('addStaffBtn');
+
+    if (!name || !email) {
+      showMsg('staffMsg', 'Please enter name and email.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+      const { error } = await supabaseClient
+        .from('rm_users')
+        .insert({
+          org_id: currentUser.orgId,
+          full_name: name,
+          email: email,
+          role: 'member',
+          auth_uid: null
+        });
+      if (error) throw error;
+
+      sendTelegramNote(`Staff added: ${name} (${email}) to ${currentOrg.orgName}. Ask them to set their password at reminders.anyapps.in/join.html`);
+
+      showMsg('staffMsg', `Added! Ask ${name} to visit reminders.anyapps.in/join.html with email ${email} to set their password.`, 'success');
+      document.getElementById('staffName').value = '';
+      document.getElementById('staffEmail').value = '';
+      await loadOrgMembers();
+      renderStaffList();
+      renderAssigneeList();
+
+    } catch (err) {
+      showMsg('staffMsg', err.message || 'Failed to add staff.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add Staff Member';
+    }
+  }
+
+  async function sendTelegramNote(text) {
+    try {
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: '8507770594', text: text })
+      });
+    } catch (e) {}
+  }
+
+  // ---------- MY ITEMS ----------
+  async function loadMyItems() {
+    const myRowId = await getMyUserRowId();
+    if (!myRowId) {
+      document.getElementById('myItemsList').innerHTML = '<div class="empty">No items yet.</div>';
+      return;
+    }
+
+    const { data: assignments, error } = await supabaseClient
+      .from('rm_item_assignees')
+      .select('item_id')
+      .eq('user_id', myRowId);
+
+    if (error || !assignments || assignments.length === 0) {
+      document.getElementById('myItemsList').innerHTML = '<div class="empty">No items assigned to you yet.</div>';
+      return;
+    }
+
+    const itemIds = assignments.map(a => a.item_id);
+    const { data: items, error: itemsErr } = await supabaseClient
+      .from('rm_items')
+      .select('id, item_type, title, category, due_date, due_time, status')
+      .in('id', itemIds)
+      .order('due_date', { ascending: true });
+
+    if (itemsErr || !items || items.length === 0) {
+      document.getElementById('myItemsList').innerHTML = '<div class="empty">No items assigned to you yet.</div>';
+      return;
+    }
+
+    const wrap = document.getElementById('myItemsList');
+    wrap.innerHTML = '';
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'itemCard';
+      const dueStr = item.due_date + (item.due_time ? ' ' + item.due_time : '');
+      div.innerHTML = `
+        <div class="itemTitle">${item.title} <span style="color:#aaa;font-weight:400;">(${item.item_type === 'reminder' ? 'Reminder' : 'To-Do'})</span></div>
+        <div class="itemMeta">Due: ${dueStr}</div>
+        <div class="catPill">${item.category}</div><br>
+        <button class="doneBtn" ${item.status === 'done' ? 'disabled' : ''} onclick="markDone('${item.id}', this)">
+          ${item.status === 'done' ? 'Completed' : 'Mark Done'}
+        </button>
+      `;
+      wrap.appendChild(div);
+    });
+  }
+
+  async function markDone(itemId, btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Saving...';
+    try {
+      const myRowId = await getMyUserRowId();
+
+      const { error: compError } = await supabaseClient
+        .from('rm_completions')
+        .insert({ item_id: itemId, completed_by: myRowId });
+      if (compError) throw compError;
+
+      const { error: updError } = await supabaseClient
+        .from('rm_items')
+        .update({ status: 'done' })
+        .eq('id', itemId);
+      if (updError) throw updError;
+
+      const { data: itemData } = await supabaseClient.from('rm_items').select('title').eq('id', itemId).single();
+      sendTelegramNote(`Task completed: "${itemData ? itemData.title : ''}" by ${currentUser.fullName} (${currentOrg.orgName})`);
+
+      btnEl.textContent = 'Completed';
+    } catch (err) {
+      alert(err.message || 'Failed to mark done.');
+      btnEl.disabled = false;
+      btnEl.textContent = 'Mark Done';
+    }
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg ' + type;
+  }
+
+  init();
+</script>
+
+</body>
+</html>

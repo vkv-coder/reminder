@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join Your Team - Reminders & To-Do</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  body { background: #f2f4f7; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #fff; width: 100%; max-width: 400px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 28px; }
+  h1 { font-size: 20px; text-align: center; margin-bottom: 4px; color: #1a1a1a; }
+  .sub { text-align: center; color: #777; font-size: 13px; margin-bottom: 20px; }
+  label { font-size: 13px; font-weight: 600; color: #333; display: block; margin: 12px 0 5px; }
+  input { width: 100%; padding: 11px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+  input:focus { border-color: #4a6cf7; }
+  button.primary { width: 100%; margin-top: 20px; padding: 12px; background: #4a6cf7; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { background: #aab8f7; cursor: not-allowed; }
+  .msg { margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+  .msg.error { background: #fdeaea; color: #b42318; display: block; }
+  .msg.success { background: #e8f5e9; color: #1b7a2e; display: block; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Join Your Team</h1>
+  <div class="sub">Set your password to get started</div>
+
+  <label>Your Email (as given by your Admin)</label>
+  <input type="email" id="joinEmail" placeholder="you@company.com">
+  <label>Create Password</label>
+  <input type="password" id="joinPassword" placeholder="At least 6 characters">
+  <button class="primary" id="joinBtn" onclick="doJoin()">Set Password & Join</button>
+  <div class="msg" id="joinMsg"></div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://jqqnnkzozjskziaizajg.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg ' + type;
+  }
+
+  async function doJoin() {
+    const email = document.getElementById('joinEmail').value.trim();
+    const password = document.getElementById('joinPassword').value;
+    const btn = document.getElementById('joinBtn');
+
+    if (!email || !password) {
+      showMsg('joinMsg', 'Please enter your email and a password.', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      showMsg('joinMsg', 'Password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Joining...';
+
+    try {
+      // Try creating a new login, or sign in if this email already has one (shared login model)
+      let authUid;
+      const { data: authData, error: authError } = await supabaseClient.auth.signUp({ email, password });
+
+      if (!authError) {
+        authUid = authData.user.id;
+      } else {
+        const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          showMsg('joinMsg', 'This email already has an account with a different password. Please use your existing password, or reset it from the Login page.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Set Password & Join';
+          return;
+        }
+        authUid = signInData.user.id;
+      }
+
+      // Now logged in - check this email was actually invited (reserved row with auth_uid = null)
+      const { data: invitedRow, error: invitedErr } = await supabaseClient
+        .from('rm_users')
+        .select('id, auth_uid')
+        .eq('email', email)
+        .is('auth_uid', null)
+        .maybeSingle();
+
+      if (invitedErr) throw invitedErr;
+      if (!invitedRow) {
+        showMsg('joinMsg', 'No pending invite found for this email. Please check with your Admin, or you may have already joined - try logging in instead.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Set Password & Join';
+        return;
+      }
+
+      // Claim the invited row
+      const { error: claimError } = await supabaseClient
+        .from('rm_users')
+        .update({ auth_uid: authUid })
+        .eq('id', invitedRow.id);
+      if (claimError) throw claimError;
+
+      showMsg('joinMsg', 'Success! Redirecting to your dashboard...', 'success');
+      setTimeout(() => { window.location.href = 'dashboard.html'; }, 1200);
+
+    } catch (err) {
+      showMsg('joinMsg', err.message || 'Something went wrong. Please try again.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Set Password & Join';
+    }
+  }
+</script>
+
+</body>
+</html>

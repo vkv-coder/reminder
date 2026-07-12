@@ -275,9 +275,7 @@
         btn.disabled = false;
         btn.textContent = 'Log In';
       } else {
-        document.getElementById('loggedInDetail').textContent =
-          `Welcome ${userRow.full_name} (${userRow.role}) - ${orgRow.org_name}. Dashboard coming next.`;
-        document.getElementById('loggedInScreen').classList.remove('hidden');
+        window.location.href = 'dashboard.html';
       }
 
     } catch (err) {
