@@ -74,6 +74,14 @@
   </div>
 
   <div class="wrap">
+    <div class="card" id="telegramCard" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <div>
+        <div style="font-size:14px; font-weight:600; color:#222;" id="tgStatusTitle">Checking Telegram connection...</div>
+        <div style="font-size:12px; color:#888;" id="tgStatusSub"></div>
+      </div>
+      <button class="logoutBtn" style="border-color:#4a6cf7; color:#4a6cf7; display:none;" id="tgConnectBtn" onclick="startTelegramConnect()">Connect Telegram</button>
+    </div>
+
     <div class="tabs" id="tabsBar">
       <div class="tab active" id="tabMyItems" onclick="switchTab('myItems')">My Items</div>
       <div class="tab hidden" id="tabNewItem" onclick="switchTab('newItem')">+ New</div>
@@ -219,9 +227,54 @@
     }
 
     await loadMyItems();
+    await checkTelegramStatus();
 
     document.getElementById('loadingScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
+  }
+
+  const TG_BOT_USERNAME = 'RemindersTodoBot';
+  let tgPollInterval = null;
+
+  async function checkTelegramStatus() {
+    const { data, error } = await supabaseClient
+      .from('rm_users')
+      .select('telegram_chat_id')
+      .eq('auth_uid', currentUser.authUid)
+      .single();
+
+    if (!error && data && data.telegram_chat_id) {
+      document.getElementById('tgStatusTitle').textContent = 'Telegram connected';
+      document.getElementById('tgStatusSub').textContent = 'You will receive alerts on Telegram.';
+      document.getElementById('tgConnectBtn').style.display = 'none';
+      if (tgPollInterval) { clearInterval(tgPollInterval); tgPollInterval = null; }
+    } else {
+      document.getElementById('tgStatusTitle').textContent = 'Telegram not connected';
+      document.getElementById('tgStatusSub').textContent = 'Connect to receive reminder alerts.';
+      document.getElementById('tgConnectBtn').style.display = 'inline-block';
+    }
+  }
+
+  async function startTelegramConnect() {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const { error } = await supabaseClient
+      .from('rm_users')
+      .update({ telegram_connect_code: code })
+      .eq('auth_uid', currentUser.authUid);
+
+    if (error) {
+      alert('Could not start connection. Please try again.');
+      return;
+    }
+
+    document.getElementById('tgStatusTitle').textContent = 'Your code: ' + code;
+    document.getElementById('tgStatusSub').innerHTML =
+      `Open the bot, tap Start, then send this code. <a href="https://t.me/${TG_BOT_USERNAME}" target="_blank" style="color:#4a6cf7;">Open Telegram Bot</a>`;
+    document.getElementById('tgConnectBtn').style.display = 'none';
+
+    if (tgPollInterval) clearInterval(tgPollInterval);
+    tgPollInterval = setInterval(checkTelegramStatus, 4000);
   }
 
   async function doLogout() {
