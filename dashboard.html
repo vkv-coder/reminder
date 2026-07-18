@@ -534,7 +534,7 @@
         });
       if (error) throw error;
 
-      sendTelegramNote(`Staff added: ${name} (${email}) to ${currentOrg.orgName}. Ask them to set their password at reminders.anyapps.in/join.html`);
+      sendTelegramToOrgAdmin(`Staff added: ${name} (${email}) to ${currentOrg.orgName}. Ask them to set their password at reminders.anyapps.in/join.html`);
 
       showMsg('staffMsg', `Added! Ask ${name} to visit reminders.anyapps.in/join.html with email ${email} to set their password.`, 'success');
       document.getElementById('staffName').value = '';
@@ -557,6 +557,30 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: '8507770594', text: text })
+      });
+    } catch (e) {}
+  }
+
+  async function getOrgAdminChatId() {
+    const { data } = await supabaseClient
+      .from('rm_users')
+      .select('telegram_chat_id')
+      .eq('org_id', currentUser.orgId)
+      .eq('role', 'admin')
+      .not('telegram_chat_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    return data ? data.telegram_chat_id : null;
+  }
+
+  async function sendTelegramToOrgAdmin(text) {
+    try {
+      const chatId = await getOrgAdminChatId();
+      if (!chatId) return; // admin hasn't connected Telegram yet - nothing to send to
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: text })
       });
     } catch (e) {}
   }
@@ -629,7 +653,7 @@
       if (updError) throw updError;
 
       const { data: itemData } = await supabaseClient.from('rm_items').select('title').eq('id', itemId).single();
-      sendTelegramNote(`Task completed: "${itemData ? itemData.title : ''}" by ${currentUser.fullName} (${currentOrg.orgName})`);
+      sendTelegramToOrgAdmin(`Task completed: "${itemData ? itemData.title : ''}" by ${currentUser.fullName} (${currentOrg.orgName})`);
 
       btnEl.textContent = 'Completed';
       btnEl.classList.add('completed');
