@@ -194,7 +194,7 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg';
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const TG_BOT_TOKEN = '8945742271:AAH3JVQXJpVSdjLpAaNJBIA9ay_kE2xGyK4';
+  const TG_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`;
 
   let currentUser = null; // { authUid, fullName, role, orgId }
   let currentOrg = null;  // { orgName, status }
@@ -553,9 +553,9 @@
 
   async function sendTelegramNote(text) {
     try {
-      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      await fetch(TG_FUNCTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ chat_id: '8507770594', text: text })
       });
     } catch (e) {}
@@ -577,9 +577,9 @@
     try {
       const chatId = await getOrgAdminChatId();
       if (!chatId) return; // admin hasn't connected Telegram yet - nothing to send to
-      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      await fetch(TG_FUNCTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ chat_id: chatId, text: text })
       });
     } catch (e) {}

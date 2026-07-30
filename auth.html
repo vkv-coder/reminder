@@ -104,7 +104,7 @@
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // ---- TELEGRAM CONFIG ----
-  const TG_BOT_TOKEN = '8945742271:AAH3JVQXJpVSdjLpAaNJBIA9ay_kE2xGyK4';
+  const TG_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/send-telegram`;
   const OWNER_CHAT_ID = '8507770594';
 
   function switchTab(tab) {
@@ -137,9 +137,9 @@
 
   async function sendTelegramMessage(text) {
     try {
-      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      await fetch(TG_FUNCTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ chat_id: OWNER_CHAT_ID, text: text })
       });
     } catch (e) {
