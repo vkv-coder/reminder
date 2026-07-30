@@ -53,6 +53,10 @@
     <button class="primary" id="loginBtn" onclick="doLogin()">Log In</button>
     <div class="link" onclick="switchTab('forgot')">Forgot password?</div>
     <div class="msg" id="loginMsg"></div>
+    <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid #eee">
+      <div style="font-size:11px;color:#E65100;font-weight:700;margin-bottom:8px">🧪 Just looking? Try a live sample organization</div>
+      <button class="primary" id="tryDemoBtn" onclick="tryDemoLogin()" style="background:#455A64">Try Demo</button>
+    </div>
   </div>
 
   <!-- SIGNUP FORM -->
@@ -284,6 +288,16 @@
       btn.disabled = false;
       btn.textContent = 'Log In';
     }
+  }
+
+  // Public, intentionally-known demo credentials — scoped entirely to the
+  // seeded demo org via RLS (see rm_organizations.is_demo). Just fills the
+  // real login form and reuses doLogin() as-is, so it's the exact same
+  // audited path a real user goes through, not a bypass.
+  function tryDemoLogin() {
+    document.getElementById('loginEmail').value = 'demo.admin@anyapps.in';
+    document.getElementById('loginPassword').value = 'RmDemo-fb27509ae1da!';
+    doLogin();
   }
 
   async function doForgotPassword() {
