@@ -325,6 +325,42 @@
       btn.textContent = 'Send Reset Link';
     }
   }
+
+  // Supabase persists the login session in the browser and auto-refreshes
+  // it, but this page never checked for one - so a returning logged-in
+  // visitor saw the login form again instead of going straight through.
+  // Mirrors the exact pending/suspended/active handling doLogin() already
+  // uses, just triggered from an existing session instead of a fresh one.
+  (async function checkExistingSession() {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData.session) return;
+
+    const { data: userRow, error: userErr } = await supabaseClient
+      .from('rm_users')
+      .select('org_id, role, full_name')
+      .eq('auth_uid', sessionData.session.user.id)
+      .single();
+    if (userErr || !userRow) return;
+
+    const { data: orgRow, error: orgErr } = await supabaseClient
+      .from('rm_organizations')
+      .select('status')
+      .eq('id', userRow.org_id)
+      .single();
+    if (orgErr || !orgRow) return;
+
+    if (orgRow.status === 'active') {
+      window.location.href = 'dashboard.html';
+    } else if (orgRow.status === 'pending') {
+      document.getElementById('loginForm').classList.remove('active');
+      document.getElementById('tabsBar').classList.add('hidden');
+      document.getElementById('waitingScreen').classList.remove('hidden');
+    } else if (orgRow.status === 'suspended') {
+      document.getElementById('tabsBar').classList.add('hidden');
+      showMsg('loginMsg', 'This organization account is suspended. Contact support: vkvcoder.support@gmail.com', 'error');
+    }
+    // any other/unexpected status: fall through and just show the normal login form
+  })();
 </script>
 
 </body>
