@@ -321,6 +321,12 @@
     doLogin();
   }
 
+  // Lets a direct link (?demo=1) jump straight into the demo, same as the
+  // "Try Demo" button, for one-click demo access from anyapps.in.
+  window.addEventListener('load', () => {
+    if (new URLSearchParams(location.search).get('demo') === '1') tryDemoLogin();
+  });
+
   async function doForgotPassword() {
     const email = document.getElementById('forgotEmail').value.trim();
     const btn = document.getElementById('forgotBtn');
