@@ -204,57 +204,66 @@
   let alertRuleCount = 0;
 
   async function init() {
-    const { data: sessionData } = await supabaseClient.auth.getSession();
-    if (!sessionData.session) {
-      window.location.href = 'auth.html';
-      return;
+    try {
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      if (!sessionData.session) {
+        window.location.href = 'auth.html';
+        return;
+      }
+
+      const authUid = sessionData.session.user.id;
+
+      const { data: userRow, error: userErr } = await supabaseClient
+        .from('rm_users')
+        .select('org_id, role, full_name')
+        .eq('auth_uid', authUid)
+        .single();
+
+      if (userErr || !userRow) {
+        window.location.href = 'auth.html';
+        return;
+      }
+
+      const { data: orgRow, error: orgErr } = await supabaseClient
+        .from('rm_organizations')
+        .select('org_name, status')
+        .eq('id', userRow.org_id)
+        .single();
+
+      if (orgErr || !orgRow || orgRow.status !== 'active') {
+        window.location.href = 'auth.html';
+        return;
+      }
+
+      currentUser = { authUid, fullName: userRow.full_name, role: userRow.role, orgId: userRow.org_id };
+      currentOrg = { orgName: orgRow.org_name, status: orgRow.status };
+
+      document.getElementById('orgNameHeader').textContent = currentOrg.orgName;
+      document.getElementById('userInfoHeader').textContent = `${currentUser.fullName} (${currentUser.role})`;
+
+      if (currentUser.role === 'admin') {
+        document.getElementById('tabNewItem').classList.remove('hidden');
+        document.getElementById('tabCalendar').classList.remove('hidden');
+        document.getElementById('tabPeople').classList.remove('hidden');
+        await loadOrgMembers();
+        renderAssigneeList();
+        renderStaffList();
+        await loadCalendar();
+      }
+
+      await loadMyItems();
+      await checkTelegramStatus();
+
+      document.getElementById('loadingScreen').classList.add('hidden');
+      document.getElementById('appShell').classList.remove('hidden');
+    } catch (e) {
+      // A failure anywhere above (a flaky connection, most likely, since this
+      // runs on load) must not leave the user stuck on the loading screen
+      // forever with no way to recover.
+      document.getElementById('loadingScreen').innerHTML =
+        '<div style="text-align:center;padding:20px">⚠️ Could not load — check your connection.<br>'
+        + '<button onclick="location.reload()" style="margin-top:12px">Retry</button></div>';
     }
-
-    const authUid = sessionData.session.user.id;
-
-    const { data: userRow, error: userErr } = await supabaseClient
-      .from('rm_users')
-      .select('org_id, role, full_name')
-      .eq('auth_uid', authUid)
-      .single();
-
-    if (userErr || !userRow) {
-      window.location.href = 'auth.html';
-      return;
-    }
-
-    const { data: orgRow, error: orgErr } = await supabaseClient
-      .from('rm_organizations')
-      .select('org_name, status')
-      .eq('id', userRow.org_id)
-      .single();
-
-    if (orgErr || !orgRow || orgRow.status !== 'active') {
-      window.location.href = 'auth.html';
-      return;
-    }
-
-    currentUser = { authUid, fullName: userRow.full_name, role: userRow.role, orgId: userRow.org_id };
-    currentOrg = { orgName: orgRow.org_name, status: orgRow.status };
-
-    document.getElementById('orgNameHeader').textContent = currentOrg.orgName;
-    document.getElementById('userInfoHeader').textContent = `${currentUser.fullName} (${currentUser.role})`;
-
-    if (currentUser.role === 'admin') {
-      document.getElementById('tabNewItem').classList.remove('hidden');
-      document.getElementById('tabCalendar').classList.remove('hidden');
-      document.getElementById('tabPeople').classList.remove('hidden');
-      await loadOrgMembers();
-      renderAssigneeList();
-      renderStaffList();
-      await loadCalendar();
-    }
-
-    await loadMyItems();
-    await checkTelegramStatus();
-
-    document.getElementById('loadingScreen').classList.add('hidden');
-    document.getElementById('appShell').classList.remove('hidden');
   }
 
   const TG_BOT_USERNAME = 'RemindersTodoBot';
