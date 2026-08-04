@@ -22,6 +22,7 @@ begin
         body := jsonb_build_object(
           'action', 'sendEmail',
           'to', NEW.owner_email,
+          'fromName', 'Reminders',
           'subject', 'Your Reminders account is approved',
           'html', '<p>Hi,</p>'
             || '<p>Your organization <b>' || coalesce(NEW.org_name, '') || '</b> has been approved on Reminders. You can now log in and start using the app:</p>'
