@@ -90,6 +90,8 @@
   </div>
 
   <div class="wrap">
+    <div id="trialBanner" class="hidden" style="border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:600;text-align:center;"></div>
+
     <div class="card" id="telegramCard" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
       <div>
         <div style="font-size:14px; font-weight:600; color:#222;" id="tgStatusTitle">Checking Telegram connection...</div>
@@ -207,6 +209,29 @@
   let selectedAssignees = new Set();
   let alertRuleCount = 0;
 
+  function updateTrialBanner(){
+    const b = document.getElementById('trialBanner');
+    if(!currentOrg) { b.classList.add('hidden'); return; }
+    if(currentOrg.isPaid){ b.classList.add('hidden'); return; }
+    if(!currentOrg.trialStartedAt){
+      b.classList.remove('hidden');
+      b.style.background = 'linear-gradient(135deg,#0097A7,#00ACC1)';
+      b.style.color = '#fff';
+      b.textContent = '🎁 Your 30-day free trial starts as soon as you create your first item';
+      return;
+    }
+    const end = new Date(currentOrg.trialStartedAt).getTime() + (30 + currentOrg.trialExtendedDays) * 86400000;
+    const daysLeft = Math.ceil((end - Date.now()) / 86400000);
+    if(daysLeft <= 3 && daysLeft > 0){
+      b.classList.remove('hidden');
+      b.style.background = 'linear-gradient(135deg,#F57C00,#FF9800)';
+      b.style.color = '#fff';
+      b.textContent = '⚠️ Trial: '+daysLeft+' day'+(daysLeft===1?'':'s')+' remaining — contact vkvcoder.support@gmail.com to continue';
+    } else {
+      b.classList.add('hidden');
+    }
+  }
+
   async function init() {
     try {
       const { data: sessionData } = await supabaseClient.auth.getSession();
@@ -230,20 +255,24 @@
 
       const { data: orgRow, error: orgErr } = await supabaseClient
         .from('rm_organizations')
-        .select('org_name, status')
+        .select('org_name, status, trial_started_at, trial_extended_days, is_paid')
         .eq('id', userRow.org_id)
         .single();
 
-      if (orgErr || !orgRow || orgRow.status !== 'active') {
+      const trialEnded = orgRow && !orgRow.is_paid && orgRow.trial_started_at &&
+        (Date.now() - new Date(orgRow.trial_started_at).getTime()) > (30 + (orgRow.trial_extended_days||0)) * 86400000;
+
+      if (orgErr || !orgRow || orgRow.status !== 'active' || trialEnded) {
         window.location.href = 'auth.html';
         return;
       }
 
       currentUser = { authUid, fullName: userRow.full_name, role: userRow.role, orgId: userRow.org_id };
-      currentOrg = { orgName: orgRow.org_name, status: orgRow.status };
+      currentOrg = { orgName: orgRow.org_name, status: orgRow.status, trialStartedAt: orgRow.trial_started_at, trialExtendedDays: orgRow.trial_extended_days||0, isPaid: orgRow.is_paid };
 
       document.getElementById('orgNameHeader').textContent = currentOrg.orgName;
       document.getElementById('userInfoHeader').textContent = `${currentUser.fullName} (${currentUser.role})`;
+      updateTrialBanner();
 
       if (currentUser.role === 'admin') {
         document.getElementById('tabNewItem').classList.remove('hidden');

@@ -49,10 +49,10 @@
       <span id="hiw-arrow" style="font-size:13px;transition:transform .2s">▾</span>
     </div>
     <div id="hiw-body" style="display:none;font-size:12.5px;color:#555;line-height:1.6;padding-bottom:12px">
-      <b>1. Sign up your organization</b> — you become the admin and can invite team members by email.<br/>
-      <b>2. New sign-ups are manually approved</b> before full access, to keep every organization's data private.<br/>
+      <b>1. Sign up your organization</b> — instant access, no approval wait. You become the admin and can invite team members by email.<br/>
+      <b>2. Every organization gets a 30-day free trial</b>, starting only once you create your first item — never wasted on setup time. We'll remind you 3 days before it ends.<br/>
       <b>3. Create reminders & to-dos</b>, assign them to teammates, and set alert rules — everyone stays notified automatically.<br/><br/>
-      Questions or want your own organization set up? Contact <a href="mailto:vkvcoder.support@gmail.com" style="color:#4a6cf7;font-weight:700">vkvcoder.support@gmail.com</a>
+      Want to keep going after your trial? Contact <a href="mailto:vkvcoder.support@gmail.com" style="color:#4a6cf7;font-weight:700">vkvcoder.support@gmail.com</a> to extend or ask about paid plans.
     </div>
   </div>
 
@@ -220,10 +220,11 @@
         authUid = signInData.user.id;
       }
 
-      // 2. Create organization (status = pending)
+      // 2. Create organization - instant access, 30-day free trial (starts
+      // on first item created, not here - see rm_items_start_trial trigger)
       const { data: orgData, error: orgError } = await supabaseClient
         .from('rm_organizations')
-        .insert({ org_name: orgName, owner_email: email, owner_phone: phone, status: 'pending' })
+        .insert({ org_name: orgName, owner_email: email, owner_phone: phone, status: 'active' })
         .select()
         .single();
       if (orgError) throw orgError;
@@ -240,15 +241,14 @@
         });
       if (userError) throw userError;
 
-      // 4. Notify owner via Telegram
+      // 4. Notify admin via Telegram (FYI only - no approval needed)
       sendTelegramMessage(
-        `New org signup:\nCompany: ${orgName}\nAdmin: ${fullName}\nEmail: ${email}\nPhone: ${phone}\n\nApprove in Supabase rm_organizations table.`
+        `New org signup (auto-active, 30-day free trial):\nCompany: ${orgName}\nAdmin: ${fullName}\nEmail: ${email}\nPhone: ${phone}`
       );
 
-      // 5. Show waiting screen
-      document.getElementById('signupForm').classList.remove('active');
-      document.getElementById('tabsBar').classList.add('hidden');
-      document.getElementById('waitingScreen').classList.remove('hidden');
+      // 5. Instant access - straight to dashboard
+      window.location.href = 'dashboard.html';
+      return;
 
     } catch (err) {
       showMsg('signupMsg', err.message || 'Signup failed. Please try again.', 'error');
@@ -288,10 +288,13 @@
 
       const { data: orgRow, error: orgErr } = await supabaseClient
         .from('rm_organizations')
-        .select('status, org_name')
+        .select('status, org_name, trial_started_at, trial_extended_days, is_paid')
         .eq('id', userRow.org_id)
         .single();
       if (orgErr) throw orgErr;
+
+      const trialEnded = !orgRow.is_paid && orgRow.trial_started_at &&
+        (Date.now() - new Date(orgRow.trial_started_at).getTime()) > (30 + (orgRow.trial_extended_days||0)) * 86400000;
 
       document.getElementById('loginForm').classList.remove('active');
       document.getElementById('tabsBar').classList.add('hidden');
@@ -300,6 +303,12 @@
         document.getElementById('waitingScreen').classList.remove('hidden');
       } else if (orgRow.status === 'suspended') {
         showMsg('loginMsg', 'This organization account is suspended. Contact support: vkvcoder.support@gmail.com', 'error');
+        document.getElementById('loginForm').classList.add('active');
+        document.getElementById('tabsBar').classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+      } else if (trialEnded) {
+        showMsg('loginMsg', 'Your 30-day free trial has ended. Your data is safe and waiting — contact vkvcoder.support@gmail.com to continue.', 'error');
         document.getElementById('loginForm').classList.add('active');
         document.getElementById('tabsBar').classList.remove('hidden');
         btn.disabled = false;
@@ -375,12 +384,15 @@
 
     const { data: orgRow, error: orgErr } = await supabaseClient
       .from('rm_organizations')
-      .select('status')
+      .select('status, trial_started_at, trial_extended_days, is_paid')
       .eq('id', userRow.org_id)
       .single();
     if (orgErr || !orgRow) return;
 
-    if (orgRow.status === 'active') {
+    const trialEnded = !orgRow.is_paid && orgRow.trial_started_at &&
+      (Date.now() - new Date(orgRow.trial_started_at).getTime()) > (30 + (orgRow.trial_extended_days||0)) * 86400000;
+
+    if (orgRow.status === 'active' && !trialEnded) {
       window.location.href = 'dashboard.html';
     } else if (orgRow.status === 'pending') {
       document.getElementById('loginForm').classList.remove('active');
@@ -389,6 +401,9 @@
     } else if (orgRow.status === 'suspended') {
       document.getElementById('tabsBar').classList.add('hidden');
       showMsg('loginMsg', 'This organization account is suspended. Contact support: vkvcoder.support@gmail.com', 'error');
+    } else if (trialEnded) {
+      document.getElementById('tabsBar').classList.add('hidden');
+      showMsg('loginMsg', 'Your 30-day free trial has ended. Your data is safe and waiting — contact vkvcoder.support@gmail.com to continue.', 'error');
     }
     // any other/unexpected status: fall through and just show the normal login form
   })();

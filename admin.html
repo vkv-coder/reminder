@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reminders — Admin</title>
+<style>
+  :root{--ink:#14213D;--blue:#4a6cf7;--bg:#eef1fe;--line:#dfe3f5;--text:#2B2B2B;--muted:#71767E;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',Arial,sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:640px;margin:0 auto;padding:24px 18px 60px;}
+  h1{font-size:21px;color:var(--ink);margin:0 0 4px;}
+  .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;}
+  input{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;}
+  .btn{padding:10px 16px;border:none;border-radius:10px;background:var(--blue);color:#fff;font-weight:600;cursor:pointer;font-size:13.5px;}
+  .btn.sm{padding:7px 12px;font-size:12px;background:#455A64;}
+  .hidden{display:none !important;}
+  .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .detail{font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:10px;}
+  .empty{text-align:center;color:var(--muted);font-size:13.5px;padding:20px 0;}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#e0e7ff;color:var(--blue);}
+  .pill.trial{background:#fef3c7;color:#d97706;}
+  .pill.expired{background:#fee2e2;color:#B12E2E;}
+  .pill.suspended{background:#e5e7eb;color:#374151;}
+  .pill.paid{background:#D9EAD3;color:#2E7D32;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="gateCard">
+    <h1>Reminders — Admin</h1>
+    <div class="sub">Vijay only — enter master password</div>
+    <input type="password" id="gatePw" placeholder="Password">
+    <button class="btn" style="margin-top:12px;width:100%;" onclick="checkPw()">Enter</button>
+    <div id="gateMsg"></div>
+  </div>
+
+  <div class="hidden" id="mainAdmin">
+    <h1>Organizations</h1>
+    <div class="sub">All orgs auto-activate with a 30-day free trial — manage trials and suspensions here</div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://jqqnnkzozjskziaizajg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let adminPw = '';
+const TRIAL_DAYS = 30;
+
+function trialDaysLeft(o){
+  if(!o.trial_started_at) return TRIAL_DAYS;
+  const start = new Date(o.trial_started_at);
+  const end = new Date(start.getTime() + (TRIAL_DAYS + (o.trial_extended_days||0)) * 86400000);
+  return Math.ceil((end - new Date()) / 86400000);
+}
+
+function trialPillHtml(o){
+  if(o.status === 'suspended') return '<span class="pill suspended">SUSPENDED</span>';
+  if(o.is_paid) return '<span class="pill paid">PAID</span>';
+  if(!o.trial_started_at) return '<span class="pill trial">not started</span>';
+  const left = trialDaysLeft(o);
+  return left > 0 ? `<span class="pill trial">trial: ${left}d left</span>` : '<span class="pill expired">trial expired</span>';
+}
+
+async function checkPw(){
+  const pw = document.getElementById('gatePw').value;
+  const { data, error } = await sb.rpc('rm_admin_list_orgs', { p_admin_password: pw });
+  if(!error && data){
+    adminPw = pw;
+    document.getElementById('gateCard').classList.add('hidden');
+    document.getElementById('mainAdmin').classList.remove('hidden');
+    renderOrgs(data);
+  } else {
+    document.getElementById('gateMsg').innerHTML = '<div style="color:#B12E2E;font-size:13px;margin-top:8px;">Wrong password</div>';
+  }
+}
+
+async function loadOrgs(){
+  const { data, error } = await sb.rpc('rm_admin_list_orgs', { p_admin_password: adminPw });
+  if(error){ document.getElementById('list').innerHTML = '<div class="card empty">⚠️ Could not load — try again</div>'; return; }
+  renderOrgs(data || []);
+}
+
+function renderOrgs(data){
+  const list = document.getElementById('list');
+  if(!data || data.length === 0){ list.innerHTML = '<div class="card empty">No organizations yet</div>'; return; }
+
+  list.innerHTML = data.map(o => `
+    <div class="card">
+      <div class="row"><b>${o.org_name}</b><span>${trialPillHtml(o)}</span></div>
+      <div class="detail">
+        Email: ${o.owner_email || '—'}${o.owner_phone ? ' · ' + o.owner_phone : ''}<br>
+        Signed up: ${new Date(o.created_at).toLocaleDateString('en-IN')}
+      </div>
+      <button class="btn sm" onclick="extendTrial('${o.id}')">⏱️ Extend Trial</button>
+      <button class="btn sm" style="margin-left:8px;background:${o.status==='suspended'?'#2E7D32':'#B12E2E'};" onclick="toggleSuspended('${o.id}',${o.status!=='suspended'})">${o.status==='suspended'?'Unsuspend':'Suspend'}</button>
+      <button class="btn sm" style="margin-left:8px;background:${o.is_paid?'#B12E2E':'#2E7D32'};" onclick="togglePaid('${o.id}',${!o.is_paid})">${o.is_paid?'Mark Unpaid':'💳 Mark Paid'}</button>
+    </div>
+  `).join('');
+}
+
+async function extendTrial(id){
+  const days = parseInt(prompt('Extend trial by how many days?', '30'));
+  if(!days || days < 1) return;
+  const { error } = await sb.rpc('rm_admin_extend_trial', { p_org_id: id, p_admin_password: adminPw, p_days: days });
+  if(error){ alert('Could not extend trial: ' + error.message); return; }
+  loadOrgs();
+}
+
+async function toggleSuspended(id, suspend){
+  if(suspend && !confirm('Suspend this organization? They will lose dashboard access immediately.')) return;
+  const { error } = await sb.rpc('rm_admin_set_status', { p_org_id: id, p_admin_password: adminPw, p_status: suspend ? 'suspended' : 'active' });
+  if(error){ alert('Could not update: ' + error.message); return; }
+  loadOrgs();
+}
+
+async function togglePaid(id, paid){
+  const { error } = await sb.rpc('rm_admin_set_paid', { p_org_id: id, p_admin_password: adminPw, p_paid: paid });
+  if(error){ alert('Could not update: ' + error.message); return; }
+  loadOrgs();
+}
+</script>
+</body>
+</html>
