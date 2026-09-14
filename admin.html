@@ -71,15 +71,20 @@ function trialPillHtml(o){
 
 async function checkPw(){
   const pw = document.getElementById('gatePw').value;
-  const { data, error } = await sb.rpc('rm_admin_list_orgs', { p_admin_password: pw });
-  if(!error && data){
-    adminPw = pw;
-    document.getElementById('gateCard').classList.add('hidden');
-    document.getElementById('mainAdmin').classList.remove('hidden');
-    renderOrgs(data);
-  } else {
-    const detail = error && error.message && !/unauthorized/i.test(error.message) ? ' (' + error.message + ')' : '';
-    document.getElementById('gateMsg').innerHTML = '<div style="color:#B12E2E;font-size:13px;margin-top:8px;">Wrong password' + detail + '</div>';
+  document.getElementById('gateMsg').innerHTML = '<div style="color:#71767E;font-size:13px;margin-top:8px;">Checking...</div>';
+  try {
+    const { data, error } = await sb.rpc('rm_admin_list_orgs', { p_admin_password: pw });
+    if(!error && data){
+      adminPw = pw;
+      document.getElementById('gateCard').classList.add('hidden');
+      document.getElementById('mainAdmin').classList.remove('hidden');
+      renderOrgs(data);
+    } else {
+      const detail = error && error.message && !/unauthorized/i.test(error.message) ? ' (' + error.message + ')' : '';
+      document.getElementById('gateMsg').innerHTML = '<div style="color:#B12E2E;font-size:13px;margin-top:8px;">Wrong password' + detail + '</div>';
+    }
+  } catch (e) {
+    document.getElementById('gateMsg').innerHTML = '<div style="color:#B12E2E;font-size:13px;margin-top:8px;">Request failed: ' + (e && e.message ? e.message : e) + '</div>';
   }
 }
 
