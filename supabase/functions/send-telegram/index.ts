@@ -4,16 +4,26 @@
 // then set the secret once with:
 //   supabase secrets set TG_BOT_TOKEN=<new-token>
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
   const botToken = Deno.env.get("TG_BOT_TOKEN");
   if (!botToken) {
     return new Response(JSON.stringify({ error: "TG_BOT_TOKEN not configured" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -24,14 +34,14 @@ Deno.serve(async (req: Request) => {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   if (!chat_id || !text) {
     return new Response(JSON.stringify({ error: "chat_id and text are required" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -44,6 +54,6 @@ Deno.serve(async (req: Request) => {
   const tgData = await tgRes.json();
   return new Response(JSON.stringify(tgData), {
     status: tgRes.ok ? 200 : 502,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
