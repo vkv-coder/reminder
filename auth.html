@@ -73,9 +73,14 @@
     <button class="primary" id="loginBtn" onclick="doLogin()">Log In</button>
     <div class="link" onclick="switchTab('forgot')">Forgot password?</div>
     <div class="msg" id="loginMsg"></div>
-    <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid #eee">
+    <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid #eee" id="demoGate">
       <div style="font-size:11px;color:#E65100;font-weight:700;margin-bottom:8px">🧪 Just looking? Try a live sample organization</div>
-      <button class="primary" id="tryDemoBtn" onclick="tryDemoLogin()" style="background:#455A64">Try Demo</button>
+      <label>Your Name</label>
+      <input type="text" id="demoName">
+      <label>Your Phone Number</label>
+      <input type="tel" id="demoPhone" maxlength="10" placeholder="10-digit mobile number">
+      <button class="primary" id="tryDemoBtn" onclick="enterDemoGated()" style="background:#455A64">Try Demo</button>
+      <div class="msg" id="demoGateMsg"></div>
     </div>
   </div>
 
@@ -337,10 +342,28 @@
     doLogin();
   }
 
-  // Lets a direct link (?demo=1) jump straight into the demo, same as the
-  // "Try Demo" button, for one-click demo access from anyapps.in.
+  async function enterDemoGated() {
+    const name = document.getElementById('demoName').value.trim();
+    const phone = document.getElementById('demoPhone').value.trim();
+    showMsg('demoGateMsg', '', '');
+    if (!name) { showMsg('demoGateMsg', 'Please enter your name.', 'error'); return; }
+    if (phone.length !== 10 || !/^\d{10}$/.test(phone)) { showMsg('demoGateMsg', 'Enter a valid 10-digit phone number.', 'error'); return; }
+    const btn = document.getElementById('tryDemoBtn');
+    btn.disabled = true; btn.textContent = 'Loading...';
+    try { await supabaseClient.from('rm_demo_visitors').insert({ name, phone }); } catch (e) {}
+    sendTelegramMessage('⏰ New Reminders demo trial — ' + name + ' (' + phone + ')');
+    tryDemoLogin();
+    btn.disabled = false; btn.textContent = 'Try Demo';
+  }
+
+  // A direct link (?demo=1) from anyapps.in lands on the same gated demo
+  // card below, not an instant silent login - the visitor still has to
+  // enter name+phone via enterDemoGated().
   window.addEventListener('load', () => {
-    if (new URLSearchParams(location.search).get('demo') === '1') tryDemoLogin();
+    if (new URLSearchParams(location.search).get('demo') === '1') {
+      document.getElementById('demoGate')?.scrollIntoView();
+      document.getElementById('demoName')?.focus();
+    }
   });
 
   async function doForgotPassword() {
